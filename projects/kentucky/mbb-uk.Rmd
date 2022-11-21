@@ -1,0 +1,62 @@
+---
+title: "Kentucky Basketball"
+output: html_document
+date: "2022-11-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, error = FALSE)
+```
+
+```{r mbb-uk-setup}
+require(ncaahoopR); require(tidyr)
+
+```
+
+# Early season success, a history
+
+My investment in regular season Kentucky basketball has dwindled over the years. Have I gotten older? Wiser, with more responsibilities that out-weigh college sports? My priors are that Coach Calipari builds new rosters each year (read: freshman) who take time to gel and learn his offense and defensive expectations. As the game has evolved to accomodate deep threes, small-ball, and stretch 4s, Coach Cal's dribble drive offense has become more obscure. My hypothesis is that early-season success at Kentucky has changed over Cal's tenure, and I predict that as time goes on, we've lost more games in the early season or key games have been less competitive (e.g., against good opponents) or more competitive (against bad opponents). An alternative hypothesis is that Kentucky basketball has gotten sloppier over time as new players are less and less familiar with Cal's style of play. 
+
+First, let's look at total wins over the first 20 games of the season, starting in 2001
+
+```{r mbb-uk-load-schedules}
+team <- 'Kentucky'
+season.list <- paste(2001:2021, 2002:2022, sep='-')
+ngames <- 20
+
+fun.get.nwins <- function(team, season,ngames){
+  
+  dat <- get_schedule(team, season)
+
+  if(all(is.na(dat))){
+    return(NA) 
+  } else {
+  nwins <- dat %>% 
+  head(ngames) %>% 
+  select('record') %>%
+  unlist() %>%
+  last() %>%
+  strsplit(.,'-') %>%
+  unlist() %>%
+  head(1) %>%
+  as.numeric()
+  
+  return(nwins)
+  }
+}  
+
+winlist <- sapply(1:length(season.list), function(i) fun.get.nwins(team, season.list[i], ngames))
+
+plot(winlist, pch=16, type='b', ylab='Wins', xlab='Season', main='Wins over the first 20 games', ylim=c(0,20), xaxt='n')
+axis(side=1, at=seq(1,length(season.list), by=5), season.list[seq(1,length(season.list), by=5)])
+
+```
+
+
+Game Excitement Index
+
+game_exciment_index(game_id, include_spread = T)
+
+    include_spread: Logical, whether to include pre-game spread in Win Probability calculations. Default = TRUE.
+
+Returns GEI (Game Excitement Index) for given ESPN game_id. For more information about how these win-

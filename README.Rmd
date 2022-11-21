@@ -1,0 +1,10 @@
+---
+title: "README"
+output: html_document
+date: "2022-11-21"
+---
+
+# Men's Basketball Data Carpentry
+
+This repository serves as a resource to gather, visualize, and manipulate men's college basketball game data. It rely's on the R package ncaahoopR
+
