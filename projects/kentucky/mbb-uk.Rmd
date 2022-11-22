@@ -10,14 +10,76 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, error = FALSE)
 
 ```{r mbb-uk-setup}
 require(ncaahoopR); require(tidyr)
+source('functions.R')
+
+
+```
+
+```{r mbb-troubleshooting, echo=F, include=F}
+team <- 'Kentucky'
+season <- '2021-22'
+sched <- get_schedule(team, season)
+
+game_id <- sched$game_id[1]
+get_date(game_id)
+
+
+get_pbp_game(game_id)
+
+is.nit(game_id) &  get_date(game_id) <= "2022-01-01"
+
+
+
+
+base_url <- "https://www.espn.com/mens-college-basketball/playbyplay?gameId="
+summary_url <- "https://www.espn.com/mens-college-basketball/game?gameId="
+j <- 0
+
+game_ids <- sched$game_id
+
+g=1
+
+is.nit(game_ids[g])
+
+for(g in 1:length(game_ids)) {
+    message(paste0("Scraping Data for Game: ", g, " of ", length(game_ids)))
+    if(is.nit(game_ids[g]) & get_date(game_ids[g]) <= '2022-01-01') {
+      message("NIT Game--Play-by-Play Data Not Available at this time")
+      next
+    }
+    url <- paste(base_url, game_ids[g], sep = "")
+    tmp <- try(XML::readHTMLTable(RCurl::getURL(url)), silent = T)
+    
+    ### Check if PBP Data is Available
+    if(class(tmp) == "try-error") {
+      message("Play-by-Play Data Not Available")
+      next
+    } else if(length(tmp) == 0) {
+      message("Play-by-Play Data Not Available")
+      next
+    }else if(length(tmp) < ncol(tmp[[1]]) | length(tmp) == 0) {
+      message("Play-by-Play Data Not Available")
+      next
+    }else{
+      t1 <- as.numeric(unlist(strsplit(as.character(tmp[[2]][2,1]), ":")))
+      t2 <- as.numeric(unlist(strsplit(as.character(tmp[[2]][5,1]), ":")))
+      if(60 * t1[1] + t1[2] < 60 * t2[1] + t2[2]) {
+        message("Game In Progress--Play-by-Play Data Not Available. Please Check Back After the Game")
+        next
+      }
+      j <- j + 1
+    }
+}
+gg_wp_chart(game_id = 401096927, home_col = "black", away_col = "red")
+game_exciment_index(sched$game_id, include_spread = T)
 
 ```
 
 # Early season success, a history
 
-My investment in regular season Kentucky basketball has dwindled over the years. Have I gotten older? Wiser, with more responsibilities that out-weigh college sports? My priors are that Coach Calipari builds new rosters each year (read: freshman) who take time to gel and learn his offense and defensive expectations. As the game has evolved to accomodate deep threes, small-ball, and stretch 4s, Coach Cal's dribble drive offense has become more obscure. My hypothesis is that early-season success at Kentucky has changed over Cal's tenure, and I predict that as time goes on, we've lost more games in the early season or key games have been less competitive (e.g., against good opponents) or more competitive (against bad opponents). An alternative hypothesis is that Kentucky basketball has gotten sloppier over time as new players are less and less familiar with Cal's style of play. 
+My investment in regular season Kentucky basketball has dwindled over the years. Have I gotten older? Wiser, with more responsibilities that out-weigh college sports? My priors are that Coach Calipari builds new rosters each year (read: freshman) who take time to gel and learn his offense and defensive expectations. As the game has evolved to accomodate deep threes, small-ball, and stretch 4s, Coach Cal's dribble drive offense has become more obscure. My hypothesis is that early-season success at Kentucky has changed over Cal's tenure, and I predict that as time goes on, we've lost more games in the early season or, alternatively, key games have been less competitive (e.g., against good opponents) or more competitive (against bad opponents). An alternative hypothesis is that Kentucky basketball has gotten sloppier over time as new players are less and less familiar with Cal's style of play. 
 
-First, let's look at total wins over the first 20 games of the season, starting in 2001
+First, let's look at total wins over the first two months of the season (roughly), starting in 2001
 
 ```{r mbb-uk-load-schedules}
 team <- 'Kentucky'
@@ -51,6 +113,17 @@ winlist <- sapply(1:length(season.list), function(i) fun.get.nwins(team, season.
 
 plot(winlist, pch=16, type='b', ylab='Wins', xlab='Season', main='Wins over the first 15 games', ylim=c(0,16), xaxt='n')
 axis(side=1, at=seq(1,length(season.list), by=5), season.list[seq(1,length(season.list), by=5)])
+
+```
+
+Ignoring the 2020-21 season, which was an outlier as far as I'm concerned, we've been pretty steady throughout Cal's tenure in terms of number of wins, with remarkable consistency the last 7 seasons (again, disregarding the 2020-21 season-- can we just delete that data?). So it's not total wins *per se* that makes the last several seasons less enjoyable. What about our performance? Are we having more disappointing losses and wins? Next, I'll look at our point differential compared to the betting line. 
+
+```{r mbb-uk-win-diff-betline}
+sched <- get_schedule(team, '2015-16')
+get_pbp(team="Kentucky", season='2015-16')
+
+get_pbp_game(sched$game_id[1])
+
 
 ```
 
