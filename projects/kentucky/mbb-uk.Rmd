@@ -9,69 +9,39 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, error = FALSE)
 ```
 
 ```{r mbb-uk-setup}
-require(ncaahoopR); require(tidyr)
-source('functions.R')
-
-
+library(ncaahoopR); library(tidyr)
+rm(list=ls())
+# source('functions.R')
 ```
 
 ```{r mbb-troubleshooting, echo=F, include=F}
 team <- 'Kentucky'
 season <- '2021-22'
-sched <- get_schedule(team, season)
 
-game_id <- sched$game_id[1]
-get_date(game_id)
+dat <- get_schedule(team, season)
+gid <- sched$game_id[1]
+pbp <-get_pbp_game(gid)
+
+# Who's the home team? needed to get the betting line
+unique(pbp$home)
+# What is the betting line?
+betline <- unique(pbp$home_favored_by) 
+expmarg <- ifelse(unique(pbp$home)==team , 1, -1)*betline
+
+# Did the team of interest (TOI) cover, and how close was the result to the line?
+mutdat <- dat %>% subset(game_id == gid ) %>% 
+  mutate(margin = team_score - opp_score) %>% 
+  mutate(expmarg = expmarg) %>% 
+  mutate(relmargin = margin - expmarg )
 
 
-get_pbp_game(game_id)
+gg_wp_chart(game_id = game_id, home_col = "black", away_col = "red")
+game_excitement_index(game_id, include_spread = T)
 
-is.nit(game_id) &  get_date(game_id) <= "2022-01-01"
+get_boxscore(game_id)
 
 
 
-
-base_url <- "https://www.espn.com/mens-college-basketball/playbyplay?gameId="
-summary_url <- "https://www.espn.com/mens-college-basketball/game?gameId="
-j <- 0
-
-game_ids <- sched$game_id
-
-g=1
-
-is.nit(game_ids[g])
-
-for(g in 1:length(game_ids)) {
-    message(paste0("Scraping Data for Game: ", g, " of ", length(game_ids)))
-    if(is.nit(game_ids[g]) & get_date(game_ids[g]) <= '2022-01-01') {
-      message("NIT Game--Play-by-Play Data Not Available at this time")
-      next
-    }
-    url <- paste(base_url, game_ids[g], sep = "")
-    tmp <- try(XML::readHTMLTable(RCurl::getURL(url)), silent = T)
-    
-    ### Check if PBP Data is Available
-    if(class(tmp) == "try-error") {
-      message("Play-by-Play Data Not Available")
-      next
-    } else if(length(tmp) == 0) {
-      message("Play-by-Play Data Not Available")
-      next
-    }else if(length(tmp) < ncol(tmp[[1]]) | length(tmp) == 0) {
-      message("Play-by-Play Data Not Available")
-      next
-    }else{
-      t1 <- as.numeric(unlist(strsplit(as.character(tmp[[2]][2,1]), ":")))
-      t2 <- as.numeric(unlist(strsplit(as.character(tmp[[2]][5,1]), ":")))
-      if(60 * t1[1] + t1[2] < 60 * t2[1] + t2[2]) {
-        message("Game In Progress--Play-by-Play Data Not Available. Please Check Back After the Game")
-        next
-      }
-      j <- j + 1
-    }
-}
-gg_wp_chart(game_id = 401096927, home_col = "black", away_col = "red")
-game_exciment_index(sched$game_id, include_spread = T)
 
 ```
 
@@ -87,6 +57,7 @@ season.list <- paste(2001:2021, 2002:2022, sep='-')
 ngames <- 15
 
 # get_schedule(team, '2014-2015')
+
 
 fun.get.nwins <- function(team, season,ngames){
   
@@ -116,15 +87,97 @@ axis(side=1, at=seq(1,length(season.list), by=5), season.list[seq(1,length(seaso
 
 ```
 
-Ignoring the 2020-21 season, which was an outlier as far as I'm concerned, we've been pretty steady throughout Cal's tenure in terms of number of wins, with remarkable consistency the last 7 seasons (again, disregarding the 2020-21 season-- can we just delete that data?). So it's not total wins *per se* that makes the last several seasons less enjoyable. What about our performance? Are we having more disappointing losses and wins? Next, I'll look at our point differential compared to the betting line. 
+Ignoring the 2020-21 season, which was an outlier as far as I'm concerned, we've been pretty steady throughout Cal's tenure in terms of number of wins, with remarkable consistency the last 7 seasons (again, disregarding the 2020-21 season). So it's not total wins *per se* that makes the last several seasons less enjoyable. What about our performance? Are we having more disappointing losses and wins? Next, I'll look at our point differential compared to the betting line. 
 
 ```{r mbb-uk-win-diff-betline}
-sched <- get_schedule(team, '2015-16')
-get_pbp(team="Kentucky", season='2015-16')
+# relative performance to betting line
+team <- 'Kentucky'
+# season.list <- paste(2001:2021, 2002:2022, sep='-')
+season.list <- paste(2006:2021, 2007:2022, sep='-')
 
-get_pbp_game(sched$game_id[1])
+season <- season.list[length(season.list)]
 
+# sched <- get_schedule(team, season)
+# pbp <- get_pbp(team, season)
+# pbp <- pbp[order(pbp$date),]
 
+# There seems to be some errors here
+# game_ids not matching up btwn pbp and sched, so don't try to make relational databases
+# let's only keep games that are listed on the schedule for the season 
+# of interest. the pbp result above includes games of the same calendar year
+# but of the previous season
+
+# tmp <- pbp %>% subset(date <= max(sched$date) & date >= min(sched$date))
+# asdf <-  get_pbp_game('401258790')
+
+fun.get.relperf <- function(sched, pbp){
+  
+  gids <- unique(pbp$game_id)
+  
+  for(i in 1:length(gids)){
+    # What is the betting line?
+    # gid <- sched$game_id[i]
+    dat <- pbp %>% subset(game_id == gids[i])
+    gamedate <- unique(dat$date)
+    
+    if(nrow(dat) == 0){
+      # error message?
+      # relmargin[i] <- NA
+      next
+    } else {
+      betline <- unique(dat$home_favored_by)
+      # based on that, what's the expected margin for the TOI?
+      expmarg <- ifelse(unique(dat$home)==team , 1, -1)*betline
+      
+      tmp <- sched %>% subset(date == gamedate ) %>% 
+      mutate(margin = team_score - opp_score) %>% 
+      mutate(expmarg = expmarg) %>% 
+      mutate(relmargin = margin - expmarg )
+      
+      if(i==1){
+        mutdat <- tmp
+      }
+      if(i>1){
+        mutdat <- rbind(mutdat,tmp)
+      }
+    }
+    
+  }
+
+  final <- merge(sched, mutdat[,c('game_id','margin','expmarg','relmargin')], by='game_id', all=T) 
+  final <- final[order(final$date),]
+  
+  return(final)
+  
+}
+
+relperf_list <- list()
+
+season.list <- paste(2009:2021, 2010:2022, sep='-')
+
+for(i in 1:length(season.list)){
+  sched <- get_schedule(team, season.list[i])
+  pbp <-  get_pbp(team, season.list[i])
+  
+  if(is.null(pbp)){
+    message(paste0('Warning: no play by play data available for season ', season.list[i]))
+    next
+  } 
+  if(length(unique(pbp$date)) != length(unique(sched$date))){
+    message(paste0('Warning: some games play by play data not available for season ', season.list[i]))
+  }
+  
+  pbp <- pbp[order(pbp$date),]
+  relperf_list[[i]] <- fun.get.relperf(sched,pbp)
+}
+
+sapply(relperf_list, function(x) mean(x$relmargin, na.rm=T))
+sapply(relperf_list, function(x) sd(x$relmargin, na.rm=T))
+
+hist(relperf_list[[1]]$relmargin)
+
+tmp <- get_schedule(team, season.list[21])
+tmp <- get_pbp_game('401258857')
 ```
 
 
@@ -135,3 +188,5 @@ get_pbp_game(sched$game_id[1])
 <!--     include_spread: Logical, whether to include pre-game spread in Win Probability calculations. Default = TRUE. -->
 
 <!-- Returns GEI (Game Excitement Index) for given ESPN game_id. For more information about how these win- -->
+
+
